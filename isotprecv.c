@@ -59,6 +59,8 @@
 #define NO_CAN_ID 0xFFFFFFFFU
 #define BUFSIZE 5000 /* size > 4095 to check socket API internal checks */
 
+static int raw_mode = 0;
+
 void print_usage(char *prg)
 {
 	fprintf(stderr, "\nUsage: %s [options] <CAN interface>\n", prg);
@@ -70,6 +72,7 @@ void print_usage(char *prg)
 	fprintf(stderr, "         -P <mode>     (check rx padding for (l)ength (c)ontent (a)ll)\n");
 	fprintf(stderr, "         -b <bs>       (blocksize. 0 = off)\n");
 	fprintf(stderr, "         -m <val>      (STmin in ms/ns. See spec.)\n");
+	fprintf(stderr, "         -r 						raw mode\n");
 	fprintf(stderr, "         -f <time ns>  (force rx stmin value in nanosecs)\n");
 	fprintf(stderr, "         -w <num>      (max. wait frame transmissions.)\n");
 	fprintf(stderr, "         -l            (loop: do not exit after pdu reception.)\n");
@@ -96,7 +99,7 @@ int main(int argc, char **argv)
 
     addr.can_addr.tp.tx_id = addr.can_addr.tp.rx_id = NO_CAN_ID;
 
-    while ((opt = getopt(argc, argv, "s:d:x:p:P:b:m:w:f:lL:?")) != -1) {
+    while ((opt = getopt(argc, argv, "s:d:x:p:P:b:m:w:rf:lL:?")) != -1) {
 	    switch (opt) {
 	    case 's':
 		    addr.can_addr.tp.tx_id = strtoul(optarg, (char **)NULL, 16);
@@ -174,6 +177,10 @@ int main(int argc, char **argv)
 		    fcopts.wftmax = strtoul(optarg, (char **)NULL, 16) & 0xFF;
 		    break;
 
+			case 'r':
+				raw_mode = 1;
+				break;	
+
 	    case 'f':
 		    opts.flags |= CAN_ISOTP_FORCE_RXSTMIN;
 		    force_rx_stmin = strtoul(optarg, (char **)NULL, 10);
@@ -244,8 +251,14 @@ int main(int argc, char **argv)
     do {
 	    nbytes = read(s, msg, BUFSIZE);
 	    if (nbytes > 0 && nbytes < BUFSIZE)
-		    for (i=0; i < nbytes; i++)
-			    printf("%02X ", msg[i]);
+		    for (i=0; i < nbytes; i++) {
+			    if(raw_mode) {
+			    	putchar(msg[i]);
+					}
+					else {
+						printf("%02X ", msg[i]);
+					}
+				}
 	    printf("\n");
     } while (loop);
 

@@ -55,6 +55,7 @@
 
 #include <linux/can.h>
 #include <linux/can/isotp.h>
+#include <errno.h>
 
 #define NO_CAN_ID 0xFFFFFFFFU
 #define BUFSIZE 5000 /* size > 4095 to check socket API internal checks */
@@ -72,6 +73,7 @@ void print_usage(char *prg)
 	fprintf(stderr, "         -f <time ns>  (ignore FC and force local tx stmin value in nanosecs)\n");
 	fprintf(stderr, "         -D <len>      (send a fixed PDU with len bytes - no STDIN data)\n");
 	fprintf(stderr, "         -b            (block until the PDU transmission is completed)\n");
+	fprintf(stderr, "         -r            raw mode\n");
 	fprintf(stderr, "         -L <mtu>:<tx_dl>:<tx_flags>  (link layer options for CAN FD)\n");
 	fprintf(stderr, "\nCAN IDs and addresses are given and expected in hexadecimal values.\n");
 	fprintf(stderr, "The pdu data is expected on STDIN in space separated ASCII hex values.\n");
@@ -83,6 +85,7 @@ int main(int argc, char **argv)
     int s;
     struct sockaddr_can addr;
     static struct can_isotp_options opts;
+		static int raw_mode = 0;
     static struct can_isotp_ll_options llopts;
     int opt;
     extern int optind, opterr, optopt;
@@ -94,7 +97,7 @@ int main(int argc, char **argv)
 
     addr.can_addr.tp.tx_id = addr.can_addr.tp.rx_id = NO_CAN_ID;
 
-    while ((opt = getopt(argc, argv, "s:d:x:p:P:t:f:D:bL:?")) != -1) {
+    while ((opt = getopt(argc, argv, "s:d:x:p:P:t:f:D:brL:?")) != -1) {
 	    switch (opt) {
 	    case 's':
 		    addr.can_addr.tp.tx_id = strtoul(optarg, (char **)NULL, 16);
@@ -191,7 +194,9 @@ int main(int argc, char **argv)
 			    exit(0);
 		    }
 		    break;
-
+			case 'r':
+				raw_mode = 1;
+				break;
 	    case '?':
 		    print_usage(basename(argv[0]));
 		    exit(0);
@@ -239,8 +244,19 @@ int main(int argc, char **argv)
     }
 
     if (!datalen) {
-	    while (buflen < BUFSIZE && scanf("%hhx", &buf[buflen]) == 1)
-		    buflen++;
+			if(raw_mode) {
+	    	while (buflen < BUFSIZE) {
+					int ret = read(STDIN_FILENO, &buf[buflen], 1);
+					//buf[buflen] = fgetc(stdin);
+		    	buflen++;
+					if(ret <= 0)
+						break;
+				}
+			}
+			else {
+	    	while (buflen < BUFSIZE && scanf("%hhx", &buf[buflen]) == 1)
+		    	buflen++;
+			}
     } else {
 	    for (buflen = 0; buflen < datalen; buflen++)
 		    buf[buflen] = ((buflen % 0xFF) + 1) & 0xFF;
